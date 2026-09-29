@@ -30,12 +30,14 @@ let
       steam_manifest="$steam_root/package/steam_client_publicbeta_linuxarm64"
 
       bootstrap_complete() {
-        [ -x "$steam_runtime/steam" ] \
+        [ -f "$steam_runtime/steam" ] \
           && [ -e "$steam_runtime/libSDL3.so.0" ] \
           && [ -e "$steam_runtime/libavcodec.so.62" ]
       }
 
       client_complete() {
+        chmod u+x "$steam_runtime/steam"
+
         bootstrap_complete \
           && [ -f "$steam_root/steam.sh" ] \
           && [ -f "$steam_manifest" ]
@@ -146,7 +148,7 @@ let
         download_component "codecs_linuxarm64_linuxarm64"
         download_component "sdl3_linuxarm64_linuxarm64"
 
-        if [ ! -x "$steam_runtime/steam" ]; then
+        if [ ! -f "$steam_runtime/steam" ]; then
           echo "Steam ARM64 bootstrap did not provide $steam_runtime/steam" >&2
           exit 1
         fi
@@ -162,6 +164,7 @@ let
         fi
 
         chmod -R u+rwX "$steam_runtime"
+        chmod u+x "$steam_runtime/steam"
 
         for executable in \
           steam \
