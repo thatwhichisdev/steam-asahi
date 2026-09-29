@@ -284,6 +284,12 @@ let
 
         cd "$steam_root"
 
+        host_library_path="/run/current-system/sw/share/nix-ld/lib:/run/opengl-driver/lib"
+
+        if [ -n "''${LD_LIBRARY_PATH:-}" ]; then
+          host_library_path="$host_library_path:$LD_LIBRARY_PATH"
+        fi
+
         while true; do
           if ${lib.getExe muvm} \
             --gpu-mode=${gpuMode} \
@@ -291,6 +297,8 @@ let
             --env="STEAM_RUNTIME=1" \
             --env="NIX_LD=''${NIX_LD:-/run/current-system/sw/share/nix-ld/lib/ld.so}" \
             --env="NIX_LD_LIBRARY_PATH=''${NIX_LD_LIBRARY_PATH:-/run/current-system/sw/share/nix-ld/lib}" \
+            --env="LD_LIBRARY_PATH=$host_library_path" \
+            --env="SYSTEM_LD_LIBRARY_PATH=$host_library_path" \
             -- \
             ${lib.getExe bash} \
             "$steam_root/steam.sh" \

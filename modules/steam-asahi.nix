@@ -136,6 +136,7 @@ in
 
           # X11
           libx11
+          libxcb
           libxcomposite
           libxcursor
           libxdamage
