@@ -76,6 +76,9 @@ in
           # Steam UI
           sdl3
 
+          # Media
+          ffmpeg_8
+
           # GLib / GTK2
           glib
           gtk2
