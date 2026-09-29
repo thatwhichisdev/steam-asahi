@@ -199,13 +199,11 @@ let
 
           echo "Running Steam bootstrap update pass $attempt..."
 
-          # During the bootstrap phase Steam's own ARM64 libraries must come
-          # first. nix-ld is only used as a fallback for host libraries that
-          # Valve does not bundle.
           if ${lib.getExe muvm} \
             --env="NIX_LD=''${NIX_LD:-/run/current-system/sw/share/nix-ld/lib/ld.so}" \
             --env="NIX_LD_LIBRARY_PATH=''${NIX_LD_LIBRARY_PATH:-/run/current-system/sw/share/nix-ld/lib}" \
             --env="LD_LIBRARY_PATH=$steam_runtime:/run/opengl-driver/lib" \
+            -- \
             "$steam_runtime/steam" \
             -forcesteamupdate \
             -forcepackagedownload \
@@ -221,6 +219,11 @@ let
           fi
 
           echo "Steam bootstrap update pass exited with status $status."
+
+          if [ "$status" -ne 0 ] && [ "$status" -ne 42 ]; then
+            echo "Steam bootstrap updater failed." >&2
+            exit "$status"
+          fi
 
           if [ "$attempt" -lt 3 ]; then
             echo "Full client is not installed yet; retrying..."
@@ -239,13 +242,11 @@ let
         cd "$steam_root"
 
         while true; do
-          # steam.sh configures Valve's own Steam runtime and LD_LIBRARY_PATH.
-          # Do not inject our own LD_LIBRARY_PATH here: Steam's bundled
-          # libraries must take precedence over NixOS libraries.
           if ${lib.getExe muvm} \
             --env="STEAM_RUNTIME=1" \
             --env="NIX_LD=''${NIX_LD:-/run/current-system/sw/share/nix-ld/lib/ld.so}" \
             --env="NIX_LD_LIBRARY_PATH=''${NIX_LD_LIBRARY_PATH:-/run/current-system/sw/share/nix-ld/lib}" \
+            -- \
             ${lib.getExe bash} \
             "$steam_root/steam.sh" \
             -noverifyfiles \
