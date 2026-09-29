@@ -26,8 +26,26 @@ let
       steam_root="''${XDG_DATA_HOME:-$HOME/.local/share}/Steam"
       steam_runtime="$steam_root/steamrtarm64"
 
+      client_complete() {
+        [ -x "$steam_runtime/steam" ] \
+          && [ -e "$steam_runtime/libSDL3.so.0" ] \
+          && [ -e "$steam_runtime/libavcodec.so.62" ]
+      }
+
+      safe_symlink() {
+        target="$1"
+        link="$2"
+
+        if [ -e "$link" ] && [ ! -L "$link" ]; then
+          echo "Refusing to replace non-symlink path: $link" >&2
+          exit 1
+        fi
+
+        ln -sfnT "$target" "$link"
+      }
+
       install_client() {
-        echo "Native ARM64 Steam is not installed."
+        echo "Native ARM64 Steam is not installed or incomplete."
         echo "Installing Steam ARM64 public beta..."
 
         manifest="$(
@@ -39,82 +57,77 @@ let
             https://client-update.steamstatic.com/steam_client_publicbeta_linuxarm64
         )"
 
-        archive="$(
-          grep \
-            -oE \
-            'bins_linuxarm64_linuxarm64\.zip\.[[:xdigit:]]+' \
-            <<< "$manifest" \
-            | head -n 1 \
-            || true
-        )"
+        cache_dir="''${XDG_CACHE_HOME:-$HOME/.cache}/steam-asahi"
+        mkdir -p "$cache_dir"
+        mkdir -p "$steam_root"
 
-        if [ -z "$archive" ]; then
-          echo "Failed to determine the current Steam ARM64 archive." >&2
+        download_component() {
+          component="$1"
+
+          archive="$(
+            printf '%s\n' "$manifest" \
+              | grep -oE "$component\.zip\.[[:xdigit:]]+" \
+              | head -n 1 \
+              || true
+          )"
+
+          if [ -z "$archive" ]; then
+            echo "Failed to resolve Steam ARM64 component: $component" >&2
+            exit 1
+          fi
+
+          archive_path="$cache_dir/$component.zip"
+          temporary_path="$archive_path.part"
+
+          echo "Downloading:"
+          echo "  https://client-update.steamstatic.com/$archive"
+
+          rm -f "$temporary_path"
+
+          curl \
+            --fail \
+            --location \
+            --show-error \
+            --retry 3 \
+            --retry-delay 2 \
+            --output "$temporary_path" \
+            "https://client-update.steamstatic.com/$archive"
+
+          mv -f "$temporary_path" "$archive_path"
+
+          echo "Extracting $component..."
+
+          unzip \
+            -q \
+            -o \
+            "$archive_path" \
+            -d "$steam_root"
+        }
+
+        download_component "bins_linuxarm64_linuxarm64"
+        download_component "codecs_linuxarm64_linuxarm64"
+        download_component "sdl3_linuxarm64_linuxarm64"
+
+        if [ ! -f "$steam_runtime/steam" ]; then
+          echo "Steam ARM64 client archive did not create $steam_runtime/steam" >&2
           exit 1
         fi
 
-        url="https://client-update.steamstatic.com/$archive"
+        if [ ! -e "$steam_runtime/libavcodec.so.62" ]; then
+          echo "Steam ARM64 codec archive did not provide libavcodec.so.62" >&2
+          exit 1
+        fi
 
-        cache_dir="''${XDG_CACHE_HOME:-$HOME/.cache}/steam-asahi"
-        archive_path="$cache_dir/bins_linuxarm64_linuxarm64.zip"
-
-        mkdir -p "$cache_dir"
-
-        echo "Downloading:"
-        echo "  $url"
-
-        curl \
-          --fail \
-          --location \
-          --show-error \
-          --output "$archive_path" \
-          "$url"
-
-        echo "Installing Steam into:"
-        echo "  $steam_root"
-
-        mkdir -p "$steam_root"
-
-        unzip \
-          -q \
-          -o \
-          "$archive_path" \
-          -d "$steam_root"
+        if [ ! -e "$steam_runtime/libSDL3.so.0" ]; then
+          echo "Steam ARM64 SDL3 archive did not provide libSDL3.so.0" >&2
+          exit 1
+        fi
 
         mkdir -p "$steam_root/package"
 
-        # The native ARM64 Steam client currently lives on the
-        # public beta channel.
         printf '%s\n' "publicbeta" > "$steam_root/package/beta"
 
         chmod -R u+rwX "$steam_runtime"
-
-        # Steam expects the steamrt64 alias.
-        ln \
-          -sfn \
-          "$steam_runtime" \
-          "$steam_root/steamrt64"
-
-        touch "$steam_root/.steam-enable-steamrt64-client"
-
-        mkdir -p "$HOME/.steam"
-
-        ln \
-          -sfn \
-          "$steam_root" \
-          "$HOME/.steam/steam"
-
-        ln \
-          -sfn \
-          "$steam_root" \
-          "$HOME/.steam/root"
-
-        if [ -e "$steam_root/linuxarm64" ]; then
-          ln \
-            -sfn \
-            "$steam_root/linuxarm64" \
-            "$HOME/.steam/sdkarm64"
-        fi
 
         for executable in \
           steam \
@@ -125,30 +138,68 @@ let
           steamsysinfo
         do
           if [ -e "$steam_runtime/$executable" ]; then
-            chmod +x "$steam_runtime/$executable"
+            chmod u+x "$steam_runtime/$executable"
           fi
         done
 
-        if [ -e "$steam_root/steam.sh" ]; then
-          chmod +x "$steam_root/steam.sh"
+        safe_symlink \
+          "$steam_runtime" \
+          "$steam_root/steamrt64"
+
+        touch "$steam_root/.steam-enable-steamrt64-client"
+
+        mkdir -p "$HOME/.steam"
+
+        safe_symlink \
+          "$steam_root" \
+          "$HOME/.steam/steam"
+
+        safe_symlink \
+          "$steam_root" \
+          "$HOME/.steam/root"
+
+        if [ -e "$steam_root/linuxarm64" ]; then
+          safe_symlink \
+            "$steam_root/linuxarm64" \
+            "$HOME/.steam/sdkarm64"
         fi
 
         echo "Steam ARM64 installation complete."
       }
 
-      if [ ! -x "$steam_runtime/steam" ]; then
+      if ! client_complete; then
         install_client
       fi
 
-      cd "$steam_root"
+      restart_count=0
 
-      exec ${lib.getExe muvm} \
-        --env="NIX_LD=''${NIX_LD:-/run/current-system/sw/share/nix-ld/lib/ld.so}" \
-        --env="NIX_LD_LIBRARY_PATH=''${NIX_LD_LIBRARY_PATH:-/run/current-system/sw/share/nix-ld/lib}" \
-        --env="LD_LIBRARY_PATH=$steam_runtime:/run/current-system/sw/share/nix-ld/lib:/run/opengl-driver/lib''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-        "$steam_root/steam.sh" \
-        -noverifyfiles \
-        "$@"
+      while true; do
+        if ${lib.getExe muvm} \
+          --env="NIX_LD=''${NIX_LD:-/run/current-system/sw/share/nix-ld/lib/ld.so}" \
+          --env="NIX_LD_LIBRARY_PATH=''${NIX_LD_LIBRARY_PATH:-/run/current-system/sw/share/nix-ld/lib}" \
+          --env="LD_LIBRARY_PATH=$steam_runtime:/run/current-system/sw/share/nix-ld/lib:/run/opengl-driver/lib''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+          "$steam_runtime/steam" \
+          -noverifyfiles \
+          "$@"
+        then
+          status=0
+        else
+          status=$?
+        fi
+
+        if [ "$status" -ne 42 ]; then
+          exit "$status"
+        fi
+
+        restart_count=$((restart_count + 1))
+
+        if [ "$restart_count" -gt 5 ]; then
+          echo "Steam requested more than 5 consecutive restarts; stopping." >&2
+          exit 42
+        fi
+
+        echo "Steam update completed; restarting inside muvm..."
+      done
     '';
   };
 
