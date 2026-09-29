@@ -70,6 +70,9 @@ in
       libraries =
         with pkgs;
         [
+          # C runtime
+          glibc
+
           # Steam UI
           sdl3
 
