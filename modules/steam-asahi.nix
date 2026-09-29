@@ -31,6 +31,19 @@ in
         Users that should be granted access to KVM for running muvm.
       '';
     };
+
+    extraLibraries = lib.mkOption {
+      type = lib.types.listOf lib.types.package;
+      default = [ ];
+      example = lib.literalExpression ''
+        with pkgs; [
+          libnotify
+        ]
+      '';
+      description = ''
+        Additional native ARM64 libraries exposed to the Steam runtime.
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -48,15 +61,62 @@ in
       pkgs.muvm
     ];
 
-    # Allow generic dynamically linked ARM64 binaries, such as
-    # Valve's Steam ARM64 client, to run on NixOS.
-    programs.nix-ld.enable = true;
-
-    # Required for accelerated graphics.
     hardware.graphics.enable = true;
-
-    # Steam controller / input device udev rules.
     hardware.steam-hardware.enable = true;
+
+    programs.nix-ld = {
+      enable = true;
+
+      libraries =
+        with pkgs;
+        [
+          # Steam client
+          sdl3
+
+          # Graphics / display
+          libdrm
+          libxkbcommon
+          wayland
+          vulkan-loader
+
+          # XWayland / X11 fallback
+          xorg.libX11
+          xorg.libXcursor
+          xorg.libXext
+          xorg.libXfixes
+          xorg.libXi
+          xorg.libXrandr
+          xorg.libXrender
+          xorg.libXtst
+
+          # Audio
+          alsa-lib
+          libpulseaudio
+          pipewire
+
+          # Fonts / UI
+          fontconfig
+          freetype
+          cairo
+          pango
+
+          # Steam web helper / Chromium
+          dbus
+          nss
+          nspr
+          gtk3
+          gdk-pixbuf
+          atk
+
+          # Misc runtime dependencies
+          expat
+        ]
+        ++ [
+          config.hardware.graphics.package
+        ]
+        ++ config.hardware.graphics.extraPackages
+        ++ cfg.extraLibraries;
+    };
 
     users.users = lib.genAttrs cfg.users (_: {
       extraGroups = lib.mkAfter [ "kvm" ];
