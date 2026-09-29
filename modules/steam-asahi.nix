@@ -74,6 +74,7 @@ in
           sdl3
 
           # Graphics / display
+          libglvnd
           libdrm
           libxkbcommon
           wayland

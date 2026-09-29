@@ -141,7 +141,9 @@ let
       fi
 
       exec ${lib.getExe muvm} \
-        --env="LD_LIBRARY_PATH=$steam_runtime''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+        --env="NIX_LD=''${NIX_LD:-/run/current-system/sw/share/nix-ld/lib/ld.so}" \
+        --env="NIX_LD_LIBRARY_PATH=''${NIX_LD_LIBRARY_PATH:-/run/current-system/sw/share/nix-ld/lib}" \
+        --env="LD_LIBRARY_PATH=$steam_runtime:/run/current-system/sw/share/nix-ld/lib:/run/opengl-driver/lib''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
         "$steam_runtime/steam" \
         -noverifyfiles \
         "$@"
