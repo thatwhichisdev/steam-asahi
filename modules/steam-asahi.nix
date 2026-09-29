@@ -96,13 +96,13 @@ in
           libpulseaudio
 
           # X11
-          xorg.libX11
-          xorg.libXext
-          xorg.libXfixes
-          xorg.libXi
-          xorg.libXrandr
-          xorg.libXrender
-          xorg.libXtst
+          libx11
+          libxext
+          libxfixes
+          libxi
+          libxrandr
+          libxrender
+          libxtst
         ]
         ++ [
           config.hardware.graphics.package
