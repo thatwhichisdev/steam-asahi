@@ -68,10 +68,11 @@ let
       # usual /usr/share locations.
       for metadata in vulkan glvnd egl; do
         source="/run/opengl-driver/share/$metadata"
+        target="$fhs_root/usr/share/$metadata"
 
         if [ -e "$source" ]; then
-          rm -rf "$fhs_root/usr/share/$metadata"
-          ln -s "$source" "$fhs_root/usr/share/$metadata"
+          rm -rf -- "''${target:?}"
+          ln -s "$source" "$target"
         fi
       done
 
