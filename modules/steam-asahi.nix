@@ -8,7 +8,9 @@
 let
   cfg = config.programs.steam-asahi;
 
-  defaultPackage = pkgs.callPackage ../pkgs/steam-asahi { };
+  defaultPackage = pkgs.callPackage ../pkgs/steam-asahi {
+    gpuMode = cfg.gpuMode;
+  };
 in
 {
   options.programs.steam-asahi = {
@@ -48,6 +50,20 @@ in
         SDL, unless required for a specific compatibility workaround.
       '';
     };
+
+    gpuMode = lib.mkOption {
+      type = lib.types.enum [
+        "drm"
+        "venus"
+        "software"
+      ];
+
+      default = "drm";
+
+      description = ''
+        GPU virtualization mode used by muvm.
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -85,6 +101,16 @@ in
           # Steam diagnostics / driver query
           SDL2
 
+          # Chromium / steamwebhelper
+          nss
+          nspr
+          dbus
+          cups
+          expat
+          alsa-lib
+          ibus
+          at-spi2-core
+
           # GLib / GTK
           glib
           gtk2
@@ -112,6 +138,7 @@ in
           libx11
           libxcomposite
           libxcursor
+          libxdamage
           libxext
           libxfixes
           libxi
