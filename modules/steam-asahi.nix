@@ -78,8 +78,12 @@ in
           gtk2
           gdk-pixbuf
 
-          # OpenGL
+          # Graphics / video
           libglvnd
+          libdrm
+          libgbm
+          libva
+          vulkan-loader
 
           # Audio
           pipewire
