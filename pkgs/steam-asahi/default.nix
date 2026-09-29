@@ -6,12 +6,102 @@
   gnugrep,
   makeDesktopItem,
   muvm,
+  pciutils,
   symlinkJoin,
   unzip,
+  util-linux,
   writeShellApplication,
 }:
 
 let
+  initScript = writeShellApplication {
+    name = "steam-asahi-init";
+
+    runtimeInputs = [
+      coreutils
+      util-linux
+      pciutils
+    ];
+
+    text = ''
+      fhs_root="/run/steam-asahi-fhs"
+
+      mkdir -p "$fhs_root/bin"
+      mkdir -p "$fhs_root/usr"
+
+      # NixOS has no /bin/bash. Steam's ARM64 web helper expects it.
+      cp -a /bin/. "$fhs_root/bin/" 2>/dev/null || true
+
+      ln -sfn ${bash}/bin/bash "$fhs_root/bin/bash"
+      ln -sfn ${bash}/bin/sh "$fhs_root/bin/sh"
+
+      # Preserve anything already available under /usr and provide the
+      # conventional paths Steam/CEF/PressureVessel expect.
+      cp -a /usr/. "$fhs_root/usr/" 2>/dev/null || true
+
+      mkdir -p "$fhs_root/usr/bin"
+      mkdir -p "$fhs_root/usr/share"
+      mkdir -p "$fhs_root/usr/lib"
+
+      ln -sfn ${coreutils}/bin/env "$fhs_root/usr/bin/env"
+
+      # Apple Silicon has no conventional PCI bus. Steam only uses lspci
+      # diagnostically, so avoid noisy failures.
+      cat > "$fhs_root/bin/lspci" <<'EOF'
+      #!${bash}/bin/sh
+      for device in /sys/bus/pci/devices/*; do
+        if [ -e "$device" ]; then
+          exec ${pciutils}/bin/lspci "$@"
+        fi
+      done
+      exit 0
+      EOF
+
+      chmod +x "$fhs_root/bin/lspci"
+
+      ln -sfn "$fhs_root/bin/lspci" "$fhs_root/usr/bin/lspci"
+
+      # Expose NixOS graphics metadata through conventional FHS paths.
+      #
+      # Libraries live under /run/opengl-driver on NixOS, but software
+      # running inside Steam Runtime / PressureVessel also searches the
+      # usual /usr/share locations.
+      for metadata in vulkan glvnd egl; do
+        source="/run/opengl-driver/share/$metadata"
+
+        if [ -e "$source" ]; then
+          rm -rf "$fhs_root/usr/share/$metadata"
+          ln -s "$source" "$fhs_root/usr/share/$metadata"
+        fi
+      done
+
+      # PressureVessel validates Vulkan ICD/layer metadata against its
+      # override tree, so expose the host metadata there as well.
+      overrides="$fhs_root/usr/lib/pressure-vessel/overrides/share/vulkan"
+
+      mkdir -p "$overrides"
+
+      for subdir in icd.d explicit_layer.d implicit_layer.d; do
+        source="/run/opengl-driver/share/vulkan/$subdir"
+
+        if [ -d "$source" ]; then
+          mkdir -p "$overrides/$subdir"
+
+          for json in "$source"/*.json; do
+            if [ -e "$json" ]; then
+              ln -sfn "$json" "$overrides/$subdir/"
+            fi
+          done
+        fi
+      done
+
+      # /bin and /usr are inherited read-only from the NixOS host.
+      # Overlay our small writable FHS compatibility trees inside the VM.
+      mount --bind "$fhs_root/bin" /bin
+      mount --bind "$fhs_root/usr" /usr
+    '';
+  };
+
   launcher = writeShellApplication {
     name = "steam-asahi";
 
@@ -255,6 +345,8 @@ let
 
         while true; do
           if ${lib.getExe muvm} \
+            --gpu-mode=drm \
+            --execute-pre ${lib.getExe initScript} \
             --env="STEAM_RUNTIME=1" \
             --env="NIX_LD=''${NIX_LD:-/run/current-system/sw/share/nix-ld/lib/ld.so}" \
             --env="NIX_LD_LIBRARY_PATH=''${NIX_LD_LIBRARY_PATH:-/run/current-system/sw/share/nix-ld/lib}" \

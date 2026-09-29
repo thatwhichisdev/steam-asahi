@@ -82,6 +82,9 @@ in
       libraries =
         with pkgs;
         [
+          # Steam diagnostics / driver query
+          SDL2
+
           # GLib / GTK
           glib
           gtk2
