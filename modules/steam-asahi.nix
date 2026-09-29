@@ -70,57 +70,29 @@ in
       libraries =
         with pkgs;
         [
-          # Steam
+          # Steam UI
           sdl3
+
+          # GLib / GTK2
           glib
+          gtk2
+          gdk-pixbuf
 
-          # Graphics
+          # OpenGL
           libglvnd
-          libdrm
-          libgbm
-          libva
-          vulkan-loader
 
-          # Input / display
-          libxkbcommon
-          wayland
+          # Audio
+          pipewire
+          libpulseaudio
 
           # X11
           xorg.libX11
-          xorg.libXcomposite
-          xorg.libXcursor
-          xorg.libXdamage
           xorg.libXext
           xorg.libXfixes
           xorg.libXi
-          xorg.libXinerama
           xorg.libXrandr
           xorg.libXrender
-          xorg.libXScrnSaver
           xorg.libXtst
-          xorg.libXxf86vm
-
-          # Audio
-          alsa-lib
-          libpulseaudio
-          pipewire
-
-          # UI / fonts
-          fontconfig
-          freetype
-          cairo
-          pango
-          gtk3
-          gdk-pixbuf
-          atk
-
-          # Web helper
-          dbus
-          nss
-          nspr
-
-          # Misc
-          expat
         ]
         ++ [
           config.hardware.graphics.package
