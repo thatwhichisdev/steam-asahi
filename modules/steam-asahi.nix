@@ -41,7 +41,11 @@ in
         ]
       '';
       description = ''
-        Additional native ARM64 libraries exposed to the Steam runtime.
+        Additional native ARM64 host libraries made available to Steam
+        through nix-ld.
+
+        Do not add libraries already bundled by Steam, such as FFmpeg or
+        SDL, unless required for a specific compatibility workaround.
       '';
     };
   };
@@ -61,30 +65,29 @@ in
       pkgs.muvm
     ];
 
+    # Required for accelerated Asahi graphics.
     hardware.graphics.enable = true;
+
+    # Steam controller and other Steam hardware udev rules.
     hardware.steam-hardware.enable = true;
 
+    # Valve's binaries use conventional Linux ELF interpreter paths.
+    #
+    # Keep this list limited to host libraries. Steam's own runtime must
+    # provide its bundled libraries first; injecting alternatives for those
+    # libraries can cause ABI mismatches.
     programs.nix-ld = {
       enable = true;
 
       libraries =
         with pkgs;
         [
-          # C runtime
-          glibc
-
-          # Steam UI
-          sdl3
-
-          # Media
-          ffmpeg_8
-
-          # GLib / GTK2
+          # GLib / GTK
           glib
           gtk2
           gdk-pixbuf
 
-          # Graphics / video
+          # Graphics / video acceleration
           libglvnd
           libdrm
           libgbm
@@ -94,15 +97,31 @@ in
           # Audio
           pipewire
           libpulseaudio
+          openal
+
+          # Fonts / text rendering
+          fontconfig
+          freetype
+          cairo
+          pango
 
           # X11
           libx11
+          libxcomposite
+          libxcursor
           libxext
           libxfixes
           libxi
+          libxinerama
           libxrandr
           libxrender
           libxtst
+          libice
+          libsm
+
+          # Wayland
+          wayland
+          libxkbcommon
         ]
         ++ [
           config.hardware.graphics.package
