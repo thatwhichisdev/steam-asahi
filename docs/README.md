@@ -177,26 +177,6 @@ Subsequent launches reuse the existing Steam installation.
 The client remains responsible for updating itself in the same way as a normal
 Steam installation.
 
-## Standalone Usage
-
-The package can also be built directly from this repository:
-
-```shell
-nix build
-```
-
-Run it without installing:
-
-```shell
-nix run
-```
-
-Or explicitly:
-
-```shell
-nix run .#steam-asahi
-```
-
 # Configuration
 
 The NixOS module currently exposes the following options:
@@ -219,63 +199,6 @@ programs.steam-asahi = {
 
 `extraLibraries` can be used to expose additional native ARM64 libraries to
 Steam through the compatibility runtime if Valve introduces new dependencies.
-
-# Development
-
-## Checking
-
-Evaluate the flake and build its checks with:
-
-```shell
-nix flake check
-```
-
-## Formatting
-
-Format the repository with:
-
-```shell
-nix fmt
-```
-
-## Building
-
-Build the default package with:
-
-```shell
-nix build
-```
-
-Build the named package explicitly with:
-
-```shell
-nix build .#steam-asahi
-```
-
-## Running
-
-Run the development version directly from the repository:
-
-```shell
-nix run
-```
-
-This makes it possible to test launcher changes without first integrating a new
-revision into another NixOS configuration.
-
-# Upstream
-
-This project is based on the ARM64 Steam work from the [Ubuntu
-Asahi](https://github.com/UbuntuAsahi) project, in particular:
-
-- [UbuntuAsahi/steam-arm64](https://github.com/UbuntuAsahi/steam-arm64)
-- [AsahiLinux/muvm](https://github.com/AsahiLinux/muvm)
-
-The Steam client itself is proprietary software distributed by Valve and is not
-part of this repository.
-
-`steam-asahi` only provides the NixOS integration required to download, install,
-and run Valve's ARM64 client in an Asahi-compatible environment.
 
 # Status
 

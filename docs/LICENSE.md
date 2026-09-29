@@ -1,6 +1,7 @@
 MIT License
 
 Copyright (c) 2026 thatwhichisdev
+
 Copyright (c) Ubuntu Asahi contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
