@@ -27,7 +27,6 @@ let
     text = ''
       steam_root="''${XDG_DATA_HOME:-$HOME/.local/share}/Steam"
       steam_runtime="$steam_root/steamrtarm64"
-      steam_manifest="$steam_root/package/steam_client_publicbeta_linuxarm64"
 
       bootstrap_complete() {
         [ -f "$steam_runtime/steam" ] \
@@ -36,11 +35,9 @@ let
       }
 
       client_complete() {
-        chmod u+x "$steam_runtime/steam"
-
         bootstrap_complete \
           && [ -f "$steam_root/steam.sh" ] \
-          && [ -f "$steam_manifest" ]
+          && [ -f "$steam_root/public/steambootstrapper_english.txt" ]
       }
 
       safe_symlink() {
@@ -214,22 +211,37 @@ let
             status=$?
           fi
 
+          # The installed filesystem is the source of truth.
+          #
+          # Steam's bootstrap updater may terminate with a non-zero status after
+          # successfully applying an update and honoring -exitsteam.
           if client_complete; then
+            echo "Steam ARM64 client update completed."
             break
           fi
 
           echo "Steam bootstrap update pass exited with status $status."
 
-          if [ "$status" -ne 0 ] && [ "$status" -ne 42 ]; then
-            echo "Steam bootstrap updater failed." >&2
-            exit "$status"
-          fi
+          case "$status" in
+            0|42|254)
+              ;;
+            *)
+              echo "Steam bootstrap updater failed." >&2
+              exit "$status"
+              ;;
+          esac
 
           if [ "$attempt" -lt 3 ]; then
             echo "Full client is not installed yet; retrying..."
             sleep 1
           fi
         done
+
+        chmod u+x "$steam_runtime/steam"
+
+        if [ -f "$steam_root/steam.sh" ]; then
+          chmod u+x "$steam_root/steam.sh"
+        fi
 
         ensure_layout
 
