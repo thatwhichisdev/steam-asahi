@@ -48,6 +48,10 @@ in
       pkgs.muvm
     ];
 
+    # Allow generic dynamically linked ARM64 binaries, such as
+    # Valve's Steam ARM64 client, to run on NixOS.
+    programs.nix-ld.enable = true;
+
     # Required for accelerated graphics.
     hardware.graphics.enable = true;
 
