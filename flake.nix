@@ -65,6 +65,7 @@
           assert moduleConfig.hardware.steam-hardware.enable;
           assert builtins.elem "kvm" moduleConfig.users.users.steam-test.extraGroups;
           assert builtins.elem pkgs.libnotify moduleConfig.programs.nix-ld.libraries;
+          assert builtins.elem pkgs.networkmanager moduleConfig.programs.nix-ld.libraries;
           assert moduleConfig.programs.steam-asahi.package.drvPath == steam-asahi.drvPath;
           builtins.deepSeq (map (package: package.drvPath) moduleConfig.programs.nix-ld.libraries) (
             pkgs.runCommand "steam-asahi-module-check" { } "touch $out"

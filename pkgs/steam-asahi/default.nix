@@ -17,6 +17,7 @@
   unzip,
   util-linux,
   writeShellApplication,
+  xdg-user-dirs,
   xz,
   gpuMode ? "drm",
 }:
@@ -70,6 +71,7 @@ let
       unzip
       # Valve's steamwebhelper.sh invokes taskset.
       util-linux
+      xdg-user-dirs
       xz
     ];
 
@@ -316,8 +318,12 @@ let
 
         cd "$steam_root"
 
+        # Prefer Valve's bundled libraries, just as during bootstrap. Keep this
+        # scoped to Steam so muvm itself runs with the host library environment.
         while true; do
           if run_muvm \
+            ${coreutils}/bin/env \
+            "LD_LIBRARY_PATH=$steam_runtime:$host_library_path" \
             ${lib.getExe bash} \
             "$steam_root/steam.sh" \
             -noverifyfiles \

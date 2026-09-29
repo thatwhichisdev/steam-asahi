@@ -229,6 +229,23 @@ JavaScript while the main client rejects its connections, leaving the UI unable
 to finish starting. Installing libraries through `extraLibraries` does not add
 commands to `PATH`.
 
+If login succeeds but the main window keeps spinning, check for
+`RefreshPlatformData: failed to load platform app` and repeated
+`appdatacache.cpp: !bSharedKVSymbols` assertions. These messages alone are not
+proof of a corrupt cache. In the tested ARM64 client, the SteamRT version of
+`steamclient.so` directly requires `libnm.so.0`. A linker probe inside muvm
+failed without that library and resolved all dependencies after it was added.
+The module now includes `networkmanager` for its native client library; this
+does not enable the NetworkManager service. Rebuild the NixOS configuration to
+apply this library change: updating only the launcher with `nix run .` is not
+enough on a system with the older module configuration.
+
+Normal launches now give the SteamRT directory priority over host libraries,
+matching bootstrap. The launcher also supplies `xdg-user-dir` via
+`xdg-user-dirs`. An authenticated test with the corrected launcher and the
+native NetworkManager library supplied in its library path completed post-login
+UI initialization in about 2.6 seconds; the user confirmed the main window loaded.
+
 Inspect logs under `${XDG_DATA_HOME:-$HOME/.local/share}/Steam/logs`, especially:
 
 - `transport_client.txt` and `transport_steamui.txt`: rejected local connections.
@@ -259,7 +276,11 @@ Validation on 2026-09-29: the launcher built, `nix flake check` passed (includin
 an enabled NixOS module and its library list), and a short launch test reached
 the sign-in window according to Steam's browser logs. The previous localhost
 connection rejections disappeared after adding the missing runtime tools.
-Account sign-in, game launch, and a fresh bootstrap installation remain untested.
+The user subsequently confirmed successful account sign-in and a hardware
+survey, followed by a main-window loading stall. The missing `libnm.so.0`
+dependency described above was then identified and fixed. A subsequent
+authenticated test completed main UI initialization, confirmed by the logs and
+the user. Game launch and a fresh bootstrap installation remain untested.
 
 Valve's native ARM64 Steam and Proton support is still relatively new, and the
 runtime requirements may change as the client is updated.

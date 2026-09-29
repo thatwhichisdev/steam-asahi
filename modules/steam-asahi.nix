@@ -111,6 +111,10 @@ in
           ibus
           at-spi2-core
 
+          # SteamRT's steamclient.so directly links against libnm.so.0.
+          # This supplies the client library, not a NetworkManager daemon.
+          networkmanager
+
           # GLib / GTK
           glib
           gtk2
