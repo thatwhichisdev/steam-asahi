@@ -8,10 +8,10 @@ Linux](https://asahilinux.org).
 Running Steam on Apple Silicon Linux has traditionally required running the
 x86_64 Steam client through an emulation or translation layer such as FEX.
 
-Valve now provides a native ARM64 Steam client together with ARM64 builds of
-Proton. This makes it possible to run the Steam client natively on ARM64 and
-leave architecture translation to Proton only when it is actually required by an
-x86 or x86_64 Windows game.
+Valve provides a native ARM64 Steam client through its public beta channel.
+ARM64 Proton distributions can provide translation for x86 or x86_64 Windows
+games; the client launcher and the game compatibility environment are separate
+pieces. This repository currently installs only the client.
 
 The [Ubuntu Asahi](https://github.com/UbuntuAsahi) project provides a working
 implementation of this setup through
@@ -62,8 +62,11 @@ The project intentionally does not run the Steam client itself through FEX,
 Box64, or another x86 compatibility layer.
 
 Architecture translation may still be required when running existing x86 or
-x86_64 Windows games. With ARM64 Proton, this translation is handled as part of
-the Proton environment rather than around the Steam client itself.
+x86_64 Windows games. The chosen ARM64 Proton distribution must provide the
+necessary translator and Steam Runtime. For example, the Ubuntu Asahi wrapper
+also installs an ARM64 GE-Proton build containing FEX and requests Steam Runtime
+4.0. This flake does not yet automate those steps or support native x86 Linux
+games through a configured FEX root filesystem.
 
 ## Components
 
@@ -174,6 +177,18 @@ from the public beta channel and installs it under:
 
 Subsequent launches reuse the existing Steam installation.
 
+To test changes from a local checkout after the NixOS module has been enabled:
+
+```shell
+nix flake check
+nix run .
+```
+
+`nix run .` uses the launcher in this checkout. An already installed
+`steam-asahi` command continues to use the version from your last system rebuild.
+The standalone package still requires the module's host setup (or equivalent
+KVM, graphics, and nix-ld configuration).
+
 The client remains responsible for updating itself in the same way as a normal
 Steam installation.
 
@@ -189,6 +204,8 @@ programs.steam-asahi = {
     "your-user"
   ];
 
+  gpuMode = "drm";
+
   extraLibraries = with pkgs; [
     # Additional native ARM64 runtime libraries.
   ];
@@ -200,9 +217,49 @@ programs.steam-asahi = {
 `extraLibraries` can be used to expose additional native ARM64 libraries to
 Steam through the compatibility runtime if Valve introduces new dependencies.
 
+`gpuMode` selects muvm's `drm`, `venus`, or `software` mode. The default is
+`drm` for Asahi acceleration. It applies to the module's default package; when
+supplying a custom `package`, configure that package's GPU mode separately.
+
+# Troubleshooting
+
+The launcher includes `lsof` because Steam uses it to identify the processes
+behind localhost IPC connections. Without it, the web helper can start and load
+JavaScript while the main client rejects its connections, leaving the UI unable
+to finish starting. Installing libraries through `extraLibraries` does not add
+commands to `PATH`.
+
+Inspect logs under `${XDG_DATA_HOME:-$HOME/.local/share}/Steam/logs`, especially:
+
+- `transport_client.txt` and `transport_steamui.txt`: rejected local connections.
+- `webhelper_js.txt` and `webhelper.txt`: UI initialization and login window creation.
+- `steamwebhelper.log` and `cef_log.txt`: browser and library errors.
+- `connection_log.txt`: connectivity to Steam servers.
+
+Interpret startup warnings in context:
+
+| Message | Meaning for the native client |
+| --- | --- |
+| FEX / Box64 not found | muvm's optional x86 emulator setup failed. ARM64 Steam can still run; x86 games need a separate compatibility setup. |
+| No IPv6 nameserver / IPv6 network unreachable | The guest cannot use those IPv6 routes. In the tested setup Steam connected to its servers over IPv4. |
+| `steamrtarm32` driver queries missing | The client attempted 32-bit ARM probes. Do not replace these with symlinks to 64-bit binaries. They did not prevent the tested login UI from loading. |
+| RADV / `vdrm_device_connect` errors | Driver probing errors alone do not establish that the Apple GPU failed. Check `steamsysinfo.txt`; the reported Apple GPU was selected in the supplied output. |
+| CPU frequency, PCI, XOpenIM, XRandR warnings | These did not prevent the tested login UI from loading. Display or input problems would require further investigation. |
+
+The launcher retains the upstream ARM64 wrapper's `-noverifyfiles` workaround.
+Its bootstrap completeness checks are not a full integrity check of the Steam
+installation. Downloads and client updates remain mutable upstream content,
+outside `flake.lock`.
+
 # Status
 
 This project should currently be considered experimental.
+
+Validation on 2026-09-29: the launcher built, `nix flake check` passed (including
+an enabled NixOS module and its library list), and a short launch test reached
+the sign-in window according to Steam's browser logs. The previous localhost
+connection rejections disappeared after adding the missing runtime tools.
+Account sign-in, game launch, and a fresh bootstrap installation remain untested.
 
 Valve's native ARM64 Steam and Proton support is still relatively new, and the
 runtime requirements may change as the client is updated.

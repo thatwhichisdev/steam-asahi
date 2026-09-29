@@ -3,14 +3,21 @@
   bash,
   coreutils,
   curl,
+  findutils,
   gnugrep,
+  gnused,
+  gnutar,
+  gzip,
+  lsof,
   makeDesktopItem,
   muvm,
   pciutils,
+  procps,
   symlinkJoin,
   unzip,
   util-linux,
   writeShellApplication,
+  xz,
   gpuMode ? "drm",
 }:
 
@@ -50,14 +57,41 @@ let
       bash
       coreutils
       curl
+      findutils
       gnugrep
+      gnused
+      gnutar
+      gzip
+      # Steam authenticates web-helper IPC connections using lsof.
+      lsof
       muvm
+      pciutils
+      procps
       unzip
+      # Valve's steamwebhelper.sh invokes taskset.
+      util-linux
+      xz
     ];
 
     text = ''
       steam_root="''${XDG_DATA_HOME:-$HOME/.local/share}/Steam"
       steam_runtime="$steam_root/steamrtarm64"
+
+      host_library_path="''${NIX_LD_LIBRARY_PATH:-/run/current-system/sw/share/nix-ld/lib}:/run/opengl-driver/lib"
+      if [ -n "''${LD_LIBRARY_PATH:-}" ]; then
+        host_library_path="$host_library_path:$LD_LIBRARY_PATH"
+      fi
+
+      run_muvm() {
+        ${lib.getExe muvm} \
+          --gpu-mode=${lib.escapeShellArg gpuMode} \
+          --execute-pre ${lib.getExe initScript} \
+          --env="NIX_LD=''${NIX_LD:-/run/current-system/sw/share/nix-ld/lib/ld.so}" \
+          --env="NIX_LD_LIBRARY_PATH=''${NIX_LD_LIBRARY_PATH:-/run/current-system/sw/share/nix-ld/lib}" \
+          --env="LD_LIBRARY_PATH=$host_library_path" \
+          --env="SYSTEM_LD_LIBRARY_PATH=$host_library_path" \
+          -- "$@"
+      }
 
       bootstrap_complete() {
         [ -f "$steam_runtime/steam" ] \
@@ -227,11 +261,9 @@ let
 
           echo "Running Steam bootstrap update pass $attempt..."
 
-          if ${lib.getExe muvm} \
-            --env="NIX_LD=''${NIX_LD:-/run/current-system/sw/share/nix-ld/lib/ld.so}" \
-            --env="NIX_LD_LIBRARY_PATH=''${NIX_LD_LIBRARY_PATH:-/run/current-system/sw/share/nix-ld/lib}" \
-            --env="LD_LIBRARY_PATH=$steam_runtime:/run/opengl-driver/lib" \
-            -- \
+          if run_muvm \
+            ${coreutils}/bin/env \
+            "LD_LIBRARY_PATH=$steam_runtime:$host_library_path" \
             "$steam_runtime/steam" \
             -forcesteamupdate \
             -forcepackagedownload \
@@ -284,22 +316,8 @@ let
 
         cd "$steam_root"
 
-        host_library_path="/run/current-system/sw/share/nix-ld/lib:/run/opengl-driver/lib"
-
-        if [ -n "''${LD_LIBRARY_PATH:-}" ]; then
-          host_library_path="$host_library_path:$LD_LIBRARY_PATH"
-        fi
-
         while true; do
-          if ${lib.getExe muvm} \
-            --gpu-mode=${gpuMode} \
-            --execute-pre ${lib.getExe initScript} \
-            --env="STEAM_RUNTIME=1" \
-            --env="NIX_LD=''${NIX_LD:-/run/current-system/sw/share/nix-ld/lib/ld.so}" \
-            --env="NIX_LD_LIBRARY_PATH=''${NIX_LD_LIBRARY_PATH:-/run/current-system/sw/share/nix-ld/lib}" \
-            --env="LD_LIBRARY_PATH=$host_library_path" \
-            --env="SYSTEM_LD_LIBRARY_PATH=$host_library_path" \
-            -- \
+          if run_muvm \
             ${lib.getExe bash} \
             "$steam_root/steam.sh" \
             -noverifyfiles \
