@@ -70,46 +70,56 @@ in
       libraries =
         with pkgs;
         [
-          # Steam client
+          # Steam
           sdl3
+          glib
 
-          # Graphics / display
+          # Graphics
           libglvnd
           libdrm
-          libxkbcommon
-          wayland
+          libgbm
+          libva
           vulkan-loader
 
-          # XWayland / X11 fallback
+          # Input / display
+          libxkbcommon
+          wayland
+
+          # X11
           xorg.libX11
+          xorg.libXcomposite
           xorg.libXcursor
+          xorg.libXdamage
           xorg.libXext
           xorg.libXfixes
           xorg.libXi
+          xorg.libXinerama
           xorg.libXrandr
           xorg.libXrender
+          xorg.libXScrnSaver
           xorg.libXtst
+          xorg.libXxf86vm
 
           # Audio
           alsa-lib
           libpulseaudio
           pipewire
 
-          # Fonts / UI
+          # UI / fonts
           fontconfig
           freetype
           cairo
           pango
-
-          # Steam web helper / Chromium
-          dbus
-          nss
-          nspr
           gtk3
           gdk-pixbuf
           atk
 
-          # Misc runtime dependencies
+          # Web helper
+          dbus
+          nss
+          nspr
+
+          # Misc
           expat
         ]
         ++ [
