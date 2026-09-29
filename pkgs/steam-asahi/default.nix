@@ -35,14 +35,17 @@ let
             --fail \
             --silent \
             --show-error \
+            --location \
             https://client-update.steamstatic.com/steam_client_publicbeta_linuxarm64
         )"
 
         archive="$(
-          printf '%s\n' "$manifest" \
-            | grep -E '"file"[[:space:]]+"bins_linuxarm64_linuxarm64.zip"' \
-            | cut -d '"' -f 4 \
-            | head -n 1
+          grep \
+            -oE \
+            'bins_linuxarm64_linuxarm64\.zip\.[[:xdigit:]]+' \
+            <<< "$manifest" \
+            | head -n 1 \
+            || true
         )"
 
         if [ -z "$archive" ]; then
