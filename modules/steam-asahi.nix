@@ -10,6 +10,7 @@ let
 
   defaultPackage = pkgs.callPackage ../pkgs/steam-asahi {
     gpuMode = cfg.gpuMode;
+    extraLibraries = cfg.extraLibraries;
   };
 in
 {
@@ -44,7 +45,7 @@ in
       '';
       description = ''
         Additional native ARM64 host libraries made available to Steam
-        through nix-ld.
+        through nix-ld and the default package's FHS environment.
 
         Do not add libraries already bundled by Steam, such as FFmpeg or
         SDL, unless required for a specific compatibility workaround.
@@ -96,73 +97,9 @@ in
       enable = true;
 
       libraries =
-        with pkgs;
-        [
-          # Steam diagnostics / driver query
-          SDL2
-
-          # Chromium / steamwebhelper
-          nss
-          nspr
-          dbus
-          cups
-          expat
-          alsa-lib
-          ibus
-          at-spi2-core
-
-          # SteamRT's steamclient.so directly links against libnm.so.0.
-          # This supplies the client library, not a NetworkManager daemon.
-          networkmanager
-
-          # GLib / GTK
-          glib
-          gtk2
-          gdk-pixbuf
-
-          # Graphics / video acceleration
-          libglvnd
-          libdrm
-          libgbm
-          libva
-          vulkan-loader
-
-          # Audio
-          pipewire
-          libpulseaudio
-          openal
-
-          # Fonts / text rendering
-          fontconfig
-          freetype
-          cairo
-          pango
-
-          # X11
-          libx11
-          libxcb
-          libxcomposite
-          libxcursor
-          libxdamage
-          libxext
-          libxfixes
-          libxi
-          libxinerama
-          libxrandr
-          libxrender
-          libxtst
-          libice
-          libsm
-
-          # Wayland
-          wayland
-          libxkbcommon
-        ]
-        ++ [
-          config.hardware.graphics.package
-        ]
-        ++ config.hardware.graphics.extraPackages
-        ++ cfg.extraLibraries;
+        defaultPackage.runtimeLibraries
+        ++ [ config.hardware.graphics.package ]
+        ++ config.hardware.graphics.extraPackages;
     };
 
     users.users = lib.genAttrs cfg.users (_: {

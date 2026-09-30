@@ -1,5 +1,8 @@
 {
   lib,
+  pkgs,
+  buildFHSEnv,
+  writeShellScript,
   bash,
   coreutils,
   curl,
@@ -20,34 +23,113 @@
   xdg-user-dirs,
   xz,
   gpuMode ? "drm",
+  extraLibraries ? [ ],
 }:
 
 let
-  initScript = writeShellApplication {
-    name = "steam-asahi-init";
+  runtimeLibraries =
+    with pkgs;
+    [
+      # Steam diagnostics / driver query
+      SDL2
 
-    runtimeInputs = [
-      coreutils
-      util-linux
-      pciutils
-    ];
+      # Chromium / steamwebhelper
+      nss
+      nspr
+      dbus
+      cups
+      expat
+      alsa-lib
+      ibus
+      at-spi2-core
 
-    text = ''
-      fhs_root="/run/steam-asahi-fhs"
+      # SteamRT's steamclient.so directly links against libnm.so.0.
+      # This supplies the client library, not a NetworkManager daemon.
+      networkmanager
 
-      mkdir -p "$fhs_root/bin"
-      mkdir -p "$fhs_root/usr/bin"
+      # GLib / GTK
+      glib
+      gtk2
+      gdk-pixbuf
 
-      cp -a /bin/. "$fhs_root/bin/" 2>/dev/null || true
-      cp -a /usr/. "$fhs_root/usr/" 2>/dev/null || true
+      # Graphics / video acceleration
+      libglvnd
+      libdrm
+      libgbm
+      libva
+      vulkan-loader
 
-      # Steam scripts expect standard FHS paths.
-      ln -sfn ${bash}/bin/bash "$fhs_root/bin/bash"
-      ln -sfn ${bash}/bin/sh "$fhs_root/bin/sh"
-      ln -sfn ${coreutils}/bin/env "$fhs_root/usr/bin/env"
+      # Audio
+      pipewire
+      libpulseaudio
+      openal
 
-      mount --bind "$fhs_root/bin" /bin
-      mount --bind "$fhs_root/usr" /usr
+      # Fonts / text rendering
+      fontconfig
+      freetype
+      cairo
+      pango
+
+      # X11
+      libx11
+      libxcb
+      libxcomposite
+      libxcursor
+      libxdamage
+      libxext
+      libxfixes
+      libxi
+      libxinerama
+      libxrandr
+      libxrender
+      libxtst
+      libice
+      libsm
+
+      # Wayland
+      wayland
+      libxkbcommon
+    ]
+    ++ extraLibraries;
+
+  guestEnv = buildFHSEnv {
+    name = "steam-asahi-env";
+    targetPkgs =
+      p:
+      runtimeLibraries
+      ++ (with p; [
+        bash
+        coreutils
+        curl
+        file
+        findutils
+        gnugrep
+        gnused
+        gnutar
+        gzip
+        lsof
+        pciutils
+        procps
+        unzip
+        util-linux
+        xdg-user-dirs
+        xdg-utils
+        xz
+      ]);
+    includeClosures = true;
+    runScript = writeShellScript "steam-asahi-guest" ''
+      exec "$@"
+    '';
+    # Match Nixpkgs' Steam environment: avoid an ldconfig symlink loop in
+    # nested pressure-vessel containers.
+    extraBuildCommands = "cp -f $out/usr/{bin,sbin}/ldconfig";
+    profile = ''
+      unset GIO_EXTRA_MODULES
+      export XDG_DATA_DIRS="/run/opengl-driver/share:/usr/share:''${XDG_DATA_DIRS:-}"
+      export LIBGL_DRIVERS_PATH=/run/opengl-driver/lib/dri
+      export __EGL_VENDOR_LIBRARY_DIRS=/run/opengl-driver/share/glvnd/egl_vendor.d
+      export LIBVA_DRIVERS_PATH=/run/opengl-driver/lib/dri
+      export SDL_JOYSTICK_DISABLE_UDEV=1
     '';
   };
 
@@ -79,7 +161,7 @@ let
       steam_root="''${XDG_DATA_HOME:-$HOME/.local/share}/Steam"
       steam_runtime="$steam_root/steamrtarm64"
 
-      host_library_path="''${NIX_LD_LIBRARY_PATH:-/run/current-system/sw/share/nix-ld/lib}:/run/opengl-driver/lib"
+      host_library_path="/usr/lib:''${NIX_LD_LIBRARY_PATH:-/run/current-system/sw/share/nix-ld/lib}:/run/opengl-driver/lib"
       if [ -n "''${LD_LIBRARY_PATH:-}" ]; then
         host_library_path="$host_library_path:$LD_LIBRARY_PATH"
       fi
@@ -87,12 +169,11 @@ let
       run_muvm() {
         ${lib.getExe muvm} \
           --gpu-mode=${lib.escapeShellArg gpuMode} \
-          --execute-pre ${lib.getExe initScript} \
           --env="NIX_LD=''${NIX_LD:-/run/current-system/sw/share/nix-ld/lib/ld.so}" \
           --env="NIX_LD_LIBRARY_PATH=''${NIX_LD_LIBRARY_PATH:-/run/current-system/sw/share/nix-ld/lib}" \
           --env="LD_LIBRARY_PATH=$host_library_path" \
           --env="SYSTEM_LD_LIBRARY_PATH=$host_library_path" \
-          -- "$@"
+          -- ${lib.getExe guestEnv} "$@"
       }
 
       bootstrap_complete() {
@@ -318,13 +399,28 @@ let
 
         cd "$steam_root"
 
+        # A bare second invocation can leave the existing client hidden in
+        # muvm, where a desktop tray icon may be unavailable. Explicitly ask
+        # Steam to show its library window, while preserving caller-supplied
+        # URLs and flags (including -shutdown and -silent).
+        if [ "$#" -eq 0 ]; then
+          set -- steam://open/games
+        fi
+
+        # The ARM64 Runtime 4 depot supplies Steam's optional launch service.
+        # Use its native tools when installed in the default Steam library.
+        runtime_tools="$steam_root/steamapps/common/SteamLinuxRuntime_4-arm64/pressure-vessel/bin"
+        if [ -x "$runtime_tools/steam-runtime-launcher-service" ]; then
+          export PATH="$PATH:$runtime_tools"
+        fi
+
         # Prefer Valve's bundled libraries, just as during bootstrap. Keep this
         # scoped to Steam so muvm itself runs with the host library environment.
         while true; do
           if run_muvm \
             ${coreutils}/bin/env \
             "LD_LIBRARY_PATH=$steam_runtime:$host_library_path" \
-            ${lib.getExe bash} \
+            /bin/bash \
             "$steam_root/steam.sh" \
             -noverifyfiles \
             "$@"
@@ -392,6 +488,8 @@ symlinkJoin {
     launcher
     desktopItem
   ];
+
+  passthru = { inherit runtimeLibraries guestEnv; };
 
   meta = {
     description = "Native ARM64 Steam launcher for NixOS on Asahi Linux";

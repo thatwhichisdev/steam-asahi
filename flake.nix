@@ -57,6 +57,14 @@
 
       checks.${system} = {
         inherit steam-asahi;
+        guest-layout = pkgs.runCommand "steam-asahi-guest-layout-check" { } ''
+          test -x ${steam-asahi.guestEnv.fhsenv}/usr/bin/true
+          test -x ${steam-asahi.guestEnv.fhsenv}/usr/bin/sh
+          test -e ${steam-asahi.guestEnv.fhsenv}/usr/lib64/libGL.so.1
+          test -e ${steam-asahi.guestEnv.fhsenv}/usr/lib64/libvulkan.so.1
+          test -x ${steam-asahi.guestEnv.fhsenv}/usr/sbin/ldconfig
+          touch "$out"
+        '';
         # flake check only checks that nixosModules are functions/attribute sets.
         # Also evaluate an enabled module and every declared runtime library.
         module =
@@ -66,7 +74,7 @@
           assert builtins.elem "kvm" moduleConfig.users.users.steam-test.extraGroups;
           assert builtins.elem pkgs.libnotify moduleConfig.programs.nix-ld.libraries;
           assert builtins.elem pkgs.networkmanager moduleConfig.programs.nix-ld.libraries;
-          assert moduleConfig.programs.steam-asahi.package.drvPath == steam-asahi.drvPath;
+          assert builtins.elem pkgs.libnotify moduleConfig.programs.steam-asahi.package.runtimeLibraries;
           builtins.deepSeq (map (package: package.drvPath) moduleConfig.programs.nix-ld.libraries) (
             pkgs.runCommand "steam-asahi-module-check" { } "touch $out"
           );
