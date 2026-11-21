@@ -22,11 +22,18 @@
   writeShellApplication,
   xdg-user-dirs,
   xz,
+  libpng,
   gpuMode ? "drm",
   extraLibraries ? [ ],
 }:
 
 let
+  libpngSymbolic = libpng.overrideAttrs (old: {
+    preConfigure = (old.preConfigure or "") + ''
+      export LDFLAGS="''${LDFLAGS:-} -Wl,-Bsymbolic-functions"
+    '';
+  });
+
   runtimeLibraries =
     with pkgs;
     [
@@ -419,7 +426,7 @@ let
         while true; do
           if run_muvm \
             ${coreutils}/bin/env \
-            "LD_LIBRARY_PATH=$steam_runtime:$host_library_path" \
+            "LD_LIBRARY_PATH=$steam_runtime:${libpngSymbolic}/lib:$host_library_path" \
             /bin/bash \
             "$steam_root/steam.sh" \
             -noverifyfiles \
