@@ -428,7 +428,6 @@ let
             ${coreutils}/bin/env \
             "LD_LIBRARY_PATH=$steam_runtime:${libpngSymbolic}/lib:$host_library_path" \
             /bin/bash \
-
             "$steam_root/steam.sh" \
             -noverifyfiles \
             "$@"
