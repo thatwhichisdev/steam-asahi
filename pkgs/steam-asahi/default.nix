@@ -28,7 +28,7 @@
 }:
 
 let
-  libpngSymbolic = (libpng.override { apngSupport = false; }).overrideAttrs (old: {
+  libpngSymbolic = libpng.overrideAttrs (old: {
     preConfigure = (old.preConfigure or "") + ''
       export LDFLAGS="''${LDFLAGS:-} -Wl,-Bsymbolic-functions"
     '';
